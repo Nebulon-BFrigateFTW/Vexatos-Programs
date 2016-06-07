@@ -174,7 +174,7 @@ end
 local benchmark, madeSteamMax = 0, 0
 
 local function handleTurbines()
-  local stored, production, engagedCoils, shutPorts = 0, 0, 0, 0
+  local stored, production, engagedCoils, shutPorts, totalSteamWanted = 0, 0, 0, 0, 0
   local rotations = {}
   local shouldReactorRun = false
   for _, turbine in ipairs(turbines) do
@@ -188,29 +188,25 @@ local function handleTurbines()
 
     local flowRate = turbine.getFluidFlowRateMax()
     local flowMax = turbine.getFluidFlowRateMaxMax()
-    if speed > (desiredSpeed + acceptedSpeed) then
-      if flowRate > 0 then
-        turbine.setFluidFlowRateMax(0)
+    
+    if speed > desiredSpeed then
+      turbine.setInductorEngaged(true)
+      engagedCoils = engagedCoils + 1
+      if speed > (desiredSpeed + acceptedSpeed) then
+        if flowRate > 0 then
+          turbine.setFluidFlowRateMax(0)
+        end
+        shutPorts = shutPorts + 1
+      else
+        totalSteamWanted = totalSteamWanted + turbine.getFluidFlowRate()
       end
-      shutPorts = shutPorts + 1
     else
+      turbine.setInductorEngaged(false)
       if flowRate < flowMax then
         turbine.setFluidFlowRateMax(flowMax)
       end
-      if not shouldReactorRun then
-        shouldReactorRun = true
-      end
-    end
-    if turbine.getInductorEngaged() then
-      if speed < (desiredSpeed - acceptedSpeed) then
-        turbine.setInductorEngaged(false)
-      end
-      engagedCoils = engagedCoils + 1
-    end
-    if speed > desiredSpeed then
-      if not turbine.getInductorEngaged() then
-        turbine.setInductorEngaged(true)
-      end
+      totalSteamWanted = totalSteamWanted + steamNeeded
+      shouldReactorRun = true
     end
   end
   
@@ -229,7 +225,7 @@ local function handleTurbines()
         reactor.setActive(true)
       else
         reactor.setAllControlRodLevels(0)
-        if madeSteam - madeSteamMax < 5 and madeSteam - madeSteamMax > -5 then
+        if math.abs(madeSteam - madeSteamMax) < 5 then
           if benchmark >= 10 then
             benchmark = -1
           else
@@ -241,8 +237,8 @@ local function handleTurbines()
         end
       end
     else
-      if reactor.getActive() then
-        neededPercent = math.ceil((neededSteam / madeSteamMax) * 100)
+      if reactor.getActive() and engagedCoils = turbines.len then
+        neededPercent = math.ceil((totalSteamWanted / madeSteamMax) * 100)
         reactor.setAllControlRodLevels(math.min(math.max(100 - neededPercent, 0), 100))
       end
     end
