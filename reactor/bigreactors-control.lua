@@ -174,7 +174,7 @@ end
 local benchmark, madeSteamMax = 0, 0
 
 local function handleTurbines()
-  local stored, production, engagedCoils, shutPorts, totalSteamWanted = 0, 0, 0, 0, 0
+  local stored, production, engagedCoils, shutPorts, totalSteamWanted, totalSteamUsed = 0, 0, 0, 0, 0, 0
   local rotations = {}
   local shouldReactorRun = false
   for _, turbine in ipairs(turbines) do
@@ -205,9 +205,10 @@ local function handleTurbines()
       if flowRate < flowMax then
         turbine.setFluidFlowRateMax(flowMax)
       end
-      totalSteamWanted = totalSteamWanted + steamNeeded
+      totalSteamWanted = totalSteamWanted + neededSteam
       shouldReactorRun = true
     end
+    totalSteamUsed = totalSteamUsed + turbine.getFluidFlowRate()
   end
   
   if shouldReactorRun and not reactor.getActive() then
@@ -237,7 +238,7 @@ local function handleTurbines()
         end
       end
     else
-      if reactor.getActive() and engagedCoils = turbines.len then
+      if reactor.getActive() and engagedCoils == turbines.len then
         neededPercent = math.ceil((totalSteamWanted / madeSteamMax) * 100)
         reactor.setAllControlRodLevels(math.min(math.max(100 - neededPercent, 0), 100))
       end
@@ -273,7 +274,7 @@ local function handleTurbines()
     term.clearLine()
     term.write("Steam production:   " .. offset(fancyNumber(madeSteam), offs) .. " mB/t\n", false)
     term.clearLine()
-    term.write("Steam consumption:  " .. offset(fancyNumber(neededSteam), offs) .. " mB/t\n", false)
+    term.write("Steam consumption:  " .. offset(fancyNumber(totalSteamUsed), offs) .. " mB/t\n", false)
     term.clearLine()
     term.write("Engaged Coils:      " .. offset(engagedCoils, offs) .. "\n", false)
     term.clearLine()
