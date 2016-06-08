@@ -211,6 +211,12 @@ local function handleTurbines()
     totalSteamUsed = totalSteamUsed + turbine.getFluidFlowRate()
   end
   
+  if stored/maxEnergy <= turnOn then
+    shouldReactorRun = true
+  elseif stored/maxEnergy >= turnOff then
+    shouldReactorRun = false
+  end
+  
   if shouldReactorRun and not reactor.getActive() then
     reactor.setActive(true)
   elseif not shouldReactorRun and reactor.getActive() then
@@ -221,24 +227,21 @@ local function handleTurbines()
   local neededPercent = 100
 
   if shouldChangeRods then
+    reactor.setActive(true)
     if benchmark >= 0 then
-      if not reactor.getActive() then
-        reactor.setActive(true)
-      else
-        reactor.setAllControlRodLevels(0)
-        if math.abs(madeSteam - madeSteamMax) < 5 then
-          if benchmark >= 10 then
-            benchmark = -1
-          else
-            benchmark = benchmark + 1
-          end
+      reactor.setAllControlRodLevels(0)
+      if math.abs(madeSteam - madeSteamMax) < 5 then
+        if benchmark >= 10 then
+          benchmark = -1
         else
-          benchmark = 0
-          madeSteamMax = madeSteam
+          benchmark = benchmark + 1
         end
+      else
+        benchmark = 0
+        madeSteamMax = madeSteam
       end
     else
-      if reactor.getActive() and engagedCoils == turbines.len then
+      if engagedCoils == turbines.len then
         neededPercent = math.ceil((totalSteamWanted / madeSteamMax) * 100)
         reactor.setAllControlRodLevels(math.min(math.max(100 - neededPercent, 0), 100))
       end
