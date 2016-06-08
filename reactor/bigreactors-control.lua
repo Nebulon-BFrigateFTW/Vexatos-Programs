@@ -46,7 +46,7 @@ local term = require("term")
 --This is true if there is no available screen or the option -s is used
 local silent = not term.isAvailable()
 
-local hasCustomValues, shouldChangeRods = false, false
+local hasCustomValues, benchmarking = false, false
 
 local function serror(msg, msg2)
   msg2 = msg2 or msg
@@ -62,7 +62,7 @@ do
   local shell = require("shell")
   local args, options = shell.parse(...)
   if options.s then silent = true end
-  if options.b then shouldChangeRods = true end
+  if options.b then benchmarking = true end
   if #args > 0 then
     turnOn = tonumber(args[1])
     turnOff = tonumber(args[2])
@@ -171,12 +171,12 @@ local function handleReactor()
   end
 end
 
-local benchmark, madeSteamMax = 0, 0
+local steamChangeIterationsAgo, madeSteamMax = 0, 0
 
 local function handleTurbines()
   local stored, production, engagedCoils, shutPorts, totalSteamWanted, totalSteamUsed = 0, 0, 0, 0, 0, 0
   local rotations = {}
-  local shouldReactorRun = false
+  local shouldReactorRun, benchmarkDone = false, false
   for _, turbine in ipairs(turbines) do
     if not turbine.getActive() then
       turbine.setActive(true)
@@ -189,7 +189,7 @@ local function handleTurbines()
     local flowRate = turbine.getFluidFlowRateMax()
     local flowMax = turbine.getFluidFlowRateMaxMax()
     
-    if speed > desiredSpeed then
+    if speed >= desiredSpeed then
       turbine.setInductorEngaged(true)
       engagedCoils = engagedCoils + 1
       if speed > (desiredSpeed + acceptedSpeed) then
@@ -198,7 +198,9 @@ local function handleTurbines()
         end
         shutPorts = shutPorts + 1
       else
-        totalSteamWanted = totalSteamWanted + turbine.getFluidFlowRate()
+        local steamWanted = turbine.getFluidFlowRate()
+        turbine.setFluidFlowRateMax(steamWanted)
+        totalSteamWanted = totalSteamWanted + steamWanted
       end
     else
       turbine.setInductorEngaged(false)
@@ -226,24 +228,21 @@ local function handleTurbines()
   local madeSteam = reactor.getHotFluidProducedLastTick()
   local neededPercent = 100
 
-  if shouldChangeRods then
+  if benchmarking and not benchmarkDone then
     reactor.setActive(true)
-    if benchmark >= 0 then
+    if steamChangeIterationsAgo < 10 then
       reactor.setAllControlRodLevels(0)
       if math.abs(madeSteam - madeSteamMax) < 5 then
-        if benchmark >= 10 then
-          benchmark = -1
-        else
-          benchmark = benchmark + 1
-        end
+        steamChangeIterationsAgo = steamChangeIterationsAgo + 1
       else
-        benchmark = 0
+        steamChangeIterationsAgo = 0
         madeSteamMax = madeSteam
       end
     else
       if engagedCoils == turbines.len then
         neededPercent = math.ceil((totalSteamWanted / madeSteamMax) * 100)
         reactor.setAllControlRodLevels(math.min(math.max(100 - neededPercent, 0), 100))
+        benchmarkDone = true
       end
     end
   end
@@ -266,12 +265,12 @@ local function handleTurbines()
     term.write("Energy Production:  " .. offset(fancyNumber(production), offs) .. " RF/t\n", false)
     term.clearLine()
     term.write("Fuel Consumption:   " .. offset(reactor.getFuelConsumedLastTick(), offs, true) .. " mB/t\n", false)
-    if shouldChangeRods then
-      term.clearLine()
+    if benchmarking then
       local evl = ""
-      if benchmark >= 0 then
-        evl = " (Evaluating)" .. string.rep(".", benchmark)
+      if not benchmarkDone then
+        evl = " (Evaluating)" .. string.rep(".", math.floor(steamChangeIterationsAgo/3))
       end
+      term.clearLine()
       term.write("Reactor power:      " .. offset(neededPercent, offs) .. " %" .. evl .. "\n", false)
     end
     term.clearLine()
