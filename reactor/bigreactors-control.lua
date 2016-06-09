@@ -139,7 +139,8 @@ end
 --The interface offset
 local offs = #tostring(maxEnergy) + 5
 
-local function handleReactor()
+ReactorController = {}
+function ReactorController:control ()
   --Get the current amount of energy stored
   local stored = reactor.getEnergyStored()
   
@@ -173,10 +174,11 @@ end
 
 local steamChangeIterationsAgo, madeSteamMax = 0, 0
 
-local function handleTurbines()
+TurbineController = {benchmarkDone = false}
+function TurbineController:control ()
   local stored, production, engagedCoils, shutPorts, totalSteamWanted, totalSteamUsed = 0, 0, 0, 0, 0, 0
   local rotations = {}
-  local shouldReactorRun, benchmarkDone = false, false
+  local shouldReactorRun = false
   for _, turbine in ipairs(turbines) do
     if not turbine.getActive() then
       turbine.setActive(true)
@@ -228,7 +230,7 @@ local function handleTurbines()
   local madeSteam = reactor.getHotFluidProducedLastTick()
   local neededPercent = 100
 
-  if benchmarking and not benchmarkDone then
+  if benchmarking and not self.benchmarkDone then
     reactor.setActive(true)
     if steamChangeIterationsAgo < 10 then
       reactor.setAllControlRodLevels(0)
@@ -239,10 +241,10 @@ local function handleTurbines()
         madeSteamMax = madeSteam
       end
     else
-      if engagedCoils == turbines.len then
+      if engagedCoils == #turbines then
         neededPercent = math.ceil((totalSteamWanted / madeSteamMax) * 100)
         reactor.setAllControlRodLevels(math.min(math.max(100 - neededPercent, 0), 100))
-        benchmarkDone = true
+        self.benchmarkDone = true
       end
     end
   end
@@ -267,7 +269,7 @@ local function handleTurbines()
     term.write("Fuel Consumption:   " .. offset(reactor.getFuelConsumedLastTick(), offs, true) .. " mB/t\n", false)
     if benchmarking then
       local evl = ""
-      if not benchmarkDone then
+      if not self.benchmarkDone then
         evl = " (Evaluating)" .. string.rep(".", math.floor(steamChangeIterationsAgo/3))
       end
       term.clearLine()
@@ -296,13 +298,13 @@ local function handleTurbines()
   end
 end
 
-local handleControl = handleReactor
+local controller = ReactorController
 if #turbines > 0 then
-  handleControl = handleTurbines
+  controller = TurbineController
 end
 
 while true do
-  handleControl()
+  controller:control()
 
   --Check if the program has been terminated
   if keyboard.isKeyDown(keyboard.keys.w) and keyboard.isControlDown() then
